@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Country Map Quiz - Full 195 Countries with Dark Mode</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root {
+      --map-tiles-filter-dark: brightness(0.6) invert(1) contrast(1.1) hue-rotate(180deg) saturate(0.7);
+    }
+    body {
+      background-color: var(--bg-color, #87CEEB);
+      color: var(--text-color, white);
+      font-family: Arial, sans-serif;
+      margin: 10px;
+      text-align: center;
+      transition: background-color 0.3s, color 0.3s;
+      overflow-x: hidden;
+    }
+    #title {
+      font-size: 36px;
+      font-weight: bold;
+      margin-bottom: 20px;
+    }
+    #darkModeSwitch {
+      position: fixed;
+      top: 15px;
+      right: 15px;
+      background-color: #222;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-weight: bold;
+      user-select: none;
+      z-index: 1000;
+      transition: background-color 0.3s, color 0.3s;
+    }
+    #darkModeSwitch.light {
+      background-color: #eee;
+      color: #333;
+    }
+    #map {
+      height: 700px;
+      width: 80%;
+      margin: 20px auto 10px auto;
+      border-radius: 8px;
+      box-shadow: 0 0 12px var(--map-border-color, #ccc);
+      background-color: var(--map-bg-color, #fefefe);
+      transition: box-shadow 0.3s, background-color 0.3s;
+      position: relative;
+      overflow: hidden;
+      z-index: 1;
+    }
+    /* Darken margins on sides */
+    #map::before, #map::after {
+      content: '';
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      width: calc(10vw);
+      pointer-events: none;
+      background-color: var(--map-bg-color, #fefefe);
+      z-index: 500;
+      transition: background-color 0.3s;
+    }
+    #map::before {
+      left: 0;
+      box-shadow: inset 80px 0 50px -40px var(--map-bg-color, #fefefe);
+    }
+    #map::after {
+      right: 0;
+      box-shadow: inset -80px 0 50px -40px var(--map-bg-color, #fefefe);
+    }
+    #inputCountry {
+      width: 300px;
+      font-size: 16px;
+      margin: 10px 0;
+      padding: 6px;
+      border-radius: 4px;
+      border: 2px solid #555;
+      outline: none;
+      background-color: var(--input-bg, #222);
+      color: var(--input-color, white);
+      transition: background-color 0.3s, color 0.3s;
+    }
+    #inputCountry.correct {
+      border-color: green;
+    }
+    #inputCountry.incorrect {
+      border-color: red;
+    }
+    #counter {
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+    #error {
+      font-size: 16px;
+      color: red;
+      margin-bottom: 10px;
+      display: none;
+      min-height: 22px;
+    }
+    #table-title {
+      font-size: 18px;
+      margin-bottom: 5px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 80%;
+      margin: 10px auto 30px;
+      background-color: var(--table-bg, #222);
+      color: var(--text-color, white);
+      transition: background-color 0.3s, color 0.3s;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    th, td {
+      border: 1px solid #555;
+      padding: 8px;
+      text-align: left;
+      vertical-align: middle;
+      min-width: 150px;
+      transition: background-color 0.3s, color 0.3s;
+      user-select: none;
+    }
+    /* Style for guessed countries */
+    td.found {
+      color: var(--text-color, white);
+    }
+    .continent-header {
+      background-color: #444;
+      font-weight: bold;
+      font-size: 20px;
+      position: relative;
+      user-select: none;
+      color: var(--continent-header-color, #ddd);
+    }
+    /* Ensure continent headers are white in light mode */
+    .light-mode .continent-header {
+      color: white !important;
+    }
+    /* Ensure continent headers are visible in dark mode */
+    .dark-mode .continent-header {
+      color: #ddd;
+    }
+    .continent-fraction {
+      position: absolute;
+      right: 12px;
+      font-size: 14px;
+      color: #bbb;
+    }
+    #footer {
+      font-size: 14px;
+      font-style: italic;
+      color: var(--text-color, #ccc);
+      margin-top: 10px;
+      max-width: 800px;
+      margin-left: auto;
+      margin-right: auto;
+      user-select: none;
+    }
+    .leaflet-tooltip {
+      font-size: 14px;
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      pointer-events: none;
+      user-select: none;
+      display: none; /* hide by default */
+    }
+    .dark-mode {
+      --bg-color: #000000;
+      --text-color: #ddd;
+      --input-bg: #333;
+      --input-color: #eee;
+      --table-bg: #222;
+      --map-border-color: #000000;
+      --map-bg-color: #000000;
+      --continent-header-color: #ddd;
+    }
+    .light-mode {
+      --bg-color: #87CEEB;
+      --text-color: #222;
+      --input-bg: #fafafa;
+      --input-color: #222;
+      --table-bg: #f0f0f0;
+      --map-border-color: #ccc;
+      --map-bg-color: #fefefe;
+      --continent-header-color: black;
+    }
+  </style>
+</head>
+<body class="dark-mode">
+
+  <button id="darkModeSwitch" title="Toggle Dark Mode">Light Mode</button>
+
+  <div id="title">Muoio's Country Quiz</div>
+  <input id="inputCountry" type="text" placeholder="Type country name..." autocomplete="off" />
+  <div id="error"></div>
+  <div id="counter">Found 0 of 195 countries.</div>
+  <div id="map"></div>
+  <div id="table-title">Found Countries</div>
+  <table id="foundCountriesTable">
+    <tbody></tbody>
+  </table>
+  <div id="footer">
+    Made by Luke Muoio — source: <a href="https://history.state.gov/countries/all" target="_blank" style="color:inherit; text-decoration:underline;">U.S. Department of State: Countries List</a> <br/>
+    Map &amp; Tiles by <a href="https://leafletjs.com/" target="_blank" style="color:inherit; text-decoration:underline;">Leaflet.js</a> and <a href="https://carto.com/" target="_blank" style="color:inherit; text-decoration:underline;">CartoDB</a>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map', {
+      worldCopyJump: false,
+      maxBounds: [[-85, -180], [85, 180]],
+      maxBoundsViscosity: 1.0,
+      zoomControl: true,
+    }).setView([20, 0], 2);
+
+    let tileLayer;
+    let darkMode = true;
+
+    function applyTileLayer() {
+      if (tileLayer) {
+        map.removeLayer(tileLayer);
+      }
+      // Use Carto Voyager No Labels for both light and dark modes
+      const url = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}.png';
+
+      tileLayer = L.tileLayer(url, {
+        attribution: '&copy; OpenStreetMap contributors &copy; CartoDB',
+        maxZoom: 18,
+        noWrap: true,
+        className: 'map-tiles',
+      }).addTo(map);
+    }
+
+    applyTileLayer();
+
+    const darkModeSwitch = document.getElementById('darkModeSwitch');
+    darkModeSwitch.onclick = () => {
+      darkMode = !darkMode;
+      if(darkMode){
+        document.body.classList.remove('light-mode');
+        document.body.classList.add('dark-mode');
+        darkModeSwitch.textContent = 'Light Mode';
+      } else {
+        document.body.classList.remove('dark-mode');
+        document.body.classList.add('light-mode');
+        darkModeSwitch.textContent = 'Dark Mode';
+      }
+      applyTileLayer(); // Reapply same tile layer
+    };
+
+    function normalizeName(name) {
+      return name.toLowerCase().trim()
+        .replace(/[.,'’\-\(\)]/g, '')
+        .replace(/\s+/g, ' ');
+    }
+
+    let countryData;
+    let geojsonLayer;
+    let foundCountries = new Set();
+    let foundCountriesOrder = [];
+    let countryCells = {};
+    let countryToCellMap = {};
+    let labelsLayer = L.layerGroup().addTo(map);
+
+    const continentMap = {
+      "Afghanistan": "Asia",
+      "Albania": "Europe",
+      "Algeria": "Africa",
+      "Andorra": "Europe",
+      "Angola": "Africa",
+      "Antigua and Barbuda": "North America",
+      "Argentina": "South America",
+      "Armenia": "Asia",
+      "Australia": "Oceania",
+      "Austria": "Europe",
+      "Azerbaijan": "Asia",
+      "Bahamas": "North America",
+      "Bahrain": "Asia",
+      "Bangladesh": "Asia",
+      "Barbados": "North America",
+      "Belarus": "Europe",
+      "Belgium": "Europe",
+      "Belize": "North America",
+      "Benin": "Africa",
+      "Bhutan": "Asia",
+      "Bolivia (Plurinational State of)": "South America",
+      "Bosnia and Herzegovina": "Europe",
+      "Botswana": "Africa",
+      "Brazil": "South America",
+      "Brunei Darussalam": "Asia",
+      "Bulgaria": "Europe",
+      "Burkina Faso": "Africa",
+      "Burundi": "Africa",
+      "Cabo Verde": "Africa",
+      "Cambodia": "Asia",
+      "Cameroon": "Africa",
+      "Canada": "North America",
+      "Central African Republic": "Africa",
+      "Chad": "Africa",
+      "Chile": "South America",
+      "China": "Asia",
+      "Colombia": "South America",
+      "Comoros": "Africa",
+      "Congo": "Africa",
+      "Costa Rica": "North America",
+      "Croatia": "Europe",
+      "Cuba": "North America",
+      "Cyprus": "Asia",
+      "Czech Republic": "Europe",
+      "Democratic Republic of the Congo": "Africa",
+      "Denmark": "Europe",
+      "Djibouti": "Africa",
+      "Dominica": "North America",
+      "Dominican Republic": "North America",
+      "Ecuador": "South America",
+      "Egypt": "Africa",
+      "El Salvador": "North America",
+      "Equatorial Guinea": "Africa",
+      "Eritrea": "Africa",
+      "Estonia": "Europe",
+      "Eswatini": "Africa",
+      "Ethiopia": "Africa",
+      "Fiji": "Oceania",
+      "Finland": "Europe",
+      "France": "Europe",
+      "Gabon": "Africa",
+      "Gambia": "Africa",
+      "Georgia": "Asia",
+      "Germany": "Europe",
+      "Ghana": "Africa",
+      "Greece": "Europe",
+      "Grenada": "North America",
+      "Guatemala": "North America",
+      "Guinea": "Africa",
+      "Guinea-Bissau": "Africa",
+      "Guyana": "South America",
+      "Haiti": "North America",
+      "Honduras": "North America",
+      "Hungary": "Europe",
+      "Iceland": "Europe",
+      "India": "Asia",
+      "Indonesia": "Asia",
+      "Iran (Islamic Republic of)": "Asia",
+      "Iraq": "Asia",
+      "Ireland": "Europe",
+      "Israel": "Asia",
+      "Italy": "Europe",
+      "Jamaica": "North America",
+      "Japan": "Asia",
+      "Jordan": "Asia",
+      "Kazakhstan": "Asia",
+      "Kenya": "Africa",
+      "Kiribati": "Oceania",
+      "Korea (Democratic People's Republic of)": "Asia",
+      "Korea (Republic of)": "Asia",
+      "Kuwait": "Asia",
+      "Kyrgyzstan": "Asia",
+      "Lao People's Democratic Republic": "Asia",
+      "Latvia": "Europe",
+      "Lebanon": "Asia",
+      "Lesotho": "Africa",
+      "Liberia": "Africa",
+      "Libya": "Africa",
+      "Liechtenstein": "Europe",
+      "Lithuania": "Europe",
+      "Luxembourg": "Europe",
+      "Madagascar": "Africa",
+      "Malawi": "Africa",
+      "Malaysia": "Asia",
+      "Maldives": "Asia",
+      "Mali": "Africa",
+      "Malta": "Europe",
+      "Marshall Islands": "Oceania",
+      "Mauritania": "Africa",
+      "Mauritius": "Africa",
+      "Mexico": "North America",
+      "Micronesia (Federated States of)": "Oceania",
+      "Moldova (Republic of)": "Europe",
+      "Monaco": "Europe",
+      "Mongolia": "Asia",
+      "Montenegro": "Europe",
+      "Morocco": "Africa",
+      "Mozambique": "Africa",
+      "Myanmar": "Asia",
+      "Namibia": "Africa",
+      "Nauru": "Oceania",
+      "Nepal": "Asia",
+      "Netherlands": "Europe",
+      "New Zealand": "Oceania",
+      "Nicaragua": "North America",
+      "Niger": "Africa",
+      "Nigeria": "Africa",
+      "Norway": "Europe",
+      "Oman": "Asia",
+      "Pakistan": "Asia",
+      "Palau": "Oceania",
+      "Panama": "North America",
+      "Papua New Guinea": "Oceania",
+      "Paraguay": "South America",
+      "Peru": "South America",
+      "Philippines": "Asia",
+      "Poland": "Europe",
+      "Portugal": "Europe",
+      "Qatar": "Asia",
+      "Romania": "Europe",
+      "Russian Federation": "Europe",
+      "Rwanda": "Africa",
+      "Saint Kitts and Nevis": "North America",
+      "Saint Lucia": "North America",
+      "Saint Vincent and the Grenadines": "North America",
+      "Samoa": "Oceania",
+      "San Marino": "Europe",
+      "Sao Tome and Principe": "Africa",
+      "Saudi Arabia": "Asia",
+      "Senegal": "Africa",
+      "Serbia": "Europe",
+      "Seychelles": "Africa",
+      "Sierra Leone": "Africa",
+      "Singapore": "Asia",
+      "Slovakia": "Europe",
+      "Slovenia": "Europe",
+      "Solomon Islands": "Oceania",
+      "Somalia": "Africa",
+      "South Africa": "Africa",
+      "South Sudan": "Africa",
+      "Spain": "Europe",
+      "Sri Lanka": "Asia",
+      "Sudan": "Africa",
+      "Suriname": "South America",
+      "Sweden": "Europe",
+      "Switzerland": "Europe",
+      "Syrian Arab Republic": "Asia",
+      "Tajikistan": "Asia",
+      "Tanzania, United Republic of": "Africa",
+      "Thailand": "Asia",
+      "Timor-Leste": "Asia",
+      "Togo": "Africa",
+      "Tonga": "Oceania",
+      "Trinidad and Tobago": "North America",
+      "Tunisia": "Africa",
+      "Turkey": "Asia",
+      "Turkmenistan": "Asia",
+      "Tuvalu": "Oceania",
+      "Uganda": "Africa",
+      "Ukraine": "Europe",
+      "United Arab Emirates": "Asia",
+      "United Kingdom of Great Britain and Northern Ireland": "Europe",
+      "United States of America": "North America",
+      "Uruguay": "South America",
+      "Uzbekistan": "Asia",
+      "Vanuatu": "Oceania",
+      "Vatican City State": "Europe",
+      "Venezuela (Bolivarian Republic of)": "South America",
+      "Vietnam": "Asia",
+      "Yemen": "Asia",
+      "Zambia": "Africa",
+      "Zimbabwe": "Africa"
+    };
+
+    const alternativeNamesMap = {
+      "russia": "Russian Federation",
+      "russian federation": "Russian Federation",
+      "america": "United States of America",
+      "usa": "United States of America",
+      "us": "United States of America",
+      "united states": "United States of America",
+      "united states of america": "United States of America",
+      "south korea": "Korea (Republic of)",
+      "north korea": "Korea (Democratic People's Republic of)",
+      "czechia": "Czech Republic",
+      "ivory coast": "Côte d'Ivoire",
+      "venezuela": "Venezuela (Bolivarian Republic of)",
+      "bolivia": "Bolivia (Plurinational State of)",
+      "tanzania": "Tanzania, United Republic of",
+      "syria": "Syrian Arab Republic",
+      "laos": "Lao People's Democratic Republic",
+      "taiwan": "Taiwan",
+      "vatican": "Vatican City State"
+    };
+
+    let countriesForSearch = {};
+
+    fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson')
+      .then(res => res.json())
+      .then(data => {
+        countryData = data;
+
+        geojsonLayer = L.geoJSON(countryData, {
+          style: {
+            color: '#b8860b',
+            weight: 1,
+            fillOpacity: 0.3,
+            fillColor: '#f0e68c'
+          }
+        }).addTo(map);
+
+        countryData.features.forEach(feature => {
+          const officialName = feature.properties.NAME;
+          const iso_a3 = feature.properties.ISO_A3;
+          const normOfficial = normalizeName(officialName);
+          const continent = continentMap[officialName];
+
+          countriesForSearch[normOfficial] = {
+            name: officialName,
+            iso_a3,
+            continent,
+            feature
+          };
+        });
+
+        Object.entries(alternativeNamesMap).forEach(([alias, official]) => {
+          const normAlias = normalizeName(alias);
+          const normOfficial = normalizeName(official);
+          if (countriesForSearch[normOfficial]) {
+            countriesForSearch[normAlias] = countriesForSearch[normOfficial];
+          }
+        });
+
+        buildBlankTable();
+        updateCounter();
+        setupInputHandler();
+      })
+      .catch(e => {
+        console.error('Error loading geojson:', e);
+        const errorEl = document.getElementById('error');
+        errorEl.textContent = `Failed to load country  ${e.message}`;
+        errorEl.style.display = 'block';
+      });
+
+    function getContinentFoundCount() {
+      const counts = {};
+      foundCountriesOrder.forEach(c => {
+        counts[c.continent] = (counts[c.continent] || 0) + 1;
+      });
+      return counts;
+    }
+
+    function buildBlankTable() {
+      const tbody = document.querySelector('#foundCountriesTable tbody');
+      tbody.innerHTML = '';
+      countryCells = {};
+      countryToCellMap = {};
+
+      const continents = {};
+      Object.values(continentMap).forEach(cont => continents[cont] = []);
+      Object.entries(continentMap).forEach(([country, cont]) => {
+        continents[cont].push(country);
+      });
+
+      const continentFoundCount = getContinentFoundCount();
+
+      Object.keys(continents).sort().forEach(continent => {
+        const countries = continents[continent];
+        const total = countries.length;
+        const found = continentFoundCount[continent] || 0;
+
+        const headRow = document.createElement('tr');
+        const headCell = document.createElement('td');
+        headCell.colSpan = getColumnCount();
+        headCell.className = 'continent-header';
+        headCell.textContent = continent;
+
+        const fraction = document.createElement('span');
+        fraction.className = 'continent-fraction';
+        fraction.textContent = `${found} / ${total}`;
+        headCell.appendChild(fraction);
+        headRow.appendChild(headCell);
+        tbody.appendChild(headRow);
+
+        const numCols = getColumnCount();
+        const numRows = Math.ceil(total / numCols);
+
+        for (let r = 0; r < numRows; r++) {
+          const row = document.createElement('tr');
+          for (let c = 0; c < numCols; c++) {
+            const idx = r * numCols + c;
+            const cell = document.createElement('td');
+            cell.textContent = '';
+            if (idx < countries.length) {
+              const country = countries[idx];
+              cell.setAttribute('data-cell-index', `${continent}-${r}-${c}`);
+              countryToCellMap[country] = `${continent}-${r}-${c}`;
+            }
+            row.appendChild(cell);
+            countryCells[`${continent}-${r}-${c}`] = cell;
+          }
+          tbody.appendChild(row);
+        }
+      });
+    }
+
+    function fillFoundCountriesCells() {
+      Object.values(countryCells).forEach(cell => {
+        cell.textContent = '';
+        cell.classList.remove('found');
+      });
+      foundCountriesOrder.forEach(({ name, continent }) => {
+        const cellKey = countryToCellMap[name];
+        if (cellKey && countryCells[cellKey]) {
+          countryCells[cellKey].textContent = name;
+          countryCells[cellKey].classList.add('found');
+        }
+      });
+    }
+
+    function getColumnCount() {
+      const w = window.innerWidth;
+      if (w < 600) return 1;
+      if (w < 900) return 2;
+      if (w < 1200) return 3;
+      return 4;
+    }
+
+    function updateCounter() {
+      document.getElementById('counter').textContent = `Found ${foundCountries.size} of 195 countries.`;
+      buildBlankTable();
+      fillFoundCountriesCells();
+    }
+
+    function handleInput(value) {
+      const input = document.getElementById('inputCountry');
+      const error = document.getElementById('error');
+      const val = normalizeName(value);
+
+      input.classList.remove('correct', 'incorrect');
+      error.style.display = 'none';
+      error.textContent = '';
+
+      if (!val) return;
+
+      const match = countriesForSearch[val];
+
+      if (match) {
+        if (foundCountries.has(match.iso_a3)) {
+          input.classList.add('incorrect');
+          error.textContent = `${match.name} has already been found!`;
+          error.style.display = 'block';
+          return;
+        }
+
+        input.classList.add('correct');
+        foundCountries.add(match.iso_a3);
+        foundCountriesOrder.push(match);
+        updateCountryColor(match.iso_a3, '#00ff00');
+        addCountryLabel(match);
+        updateCounter();
+        input.value = '';
+      } else {
+        input.classList.add('incorrect');
+        error.textContent = `Invalid country name! Please type the full official name or a known alias.`;
+        error.style.display = 'block';
+      }
+    }
+
+    function setupInputHandler() {
+      const input = document.getElementById('inputCountry');
+      let debounceTimer;
+
+      input.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          handleInput(input.value);
+        }, 500);
+      });
+
+      input.addEventListener('keypress', e => {
+        if (e.key === 'Enter') {
+          clearTimeout(debounceTimer);
+          handleInput(input.value);
+        }
+      });
+    }
+
+    function updateCountryColor(iso_a3, color) {
+      geojsonLayer.eachLayer(layer => {
+        if (layer.feature.properties.ISO_A3 === iso_a3) {
+          layer.setStyle({
+            fillColor: color,
+            fillOpacity: 0.7,
+            color: '#b8860b',
+            weight: 2
+          });
+        }
+      });
+    }
+
+    function addCountryLabel(match) {
+      const centroid = L.geoJSON(match.feature).getBounds().getCenter();
+      const existingLabels = labelsLayer.getLayers();
+      const labelExists = existingLabels.some(marker => {
+        return marker.getTooltip() && marker.getTooltip().getContent() === match.name;
+      });
+      if (!labelExists) {
+        L.marker(centroid, {
+          icon: L.divIcon({ className: '', iconSize: [0, 0] })
+        }).bindTooltip(match.name, {
+          permanent: true,
+          direction: 'center',
+          className: 'leaflet-tooltip',
+          interactive: false
+        }).addTo(labelsLayer);
+      }
+    }
+
+    window.addEventListener('resize', () => {
+      buildBlankTable();
+      fillFoundCountriesCells();
+    });
+  </script>
+</body>
+</html>
